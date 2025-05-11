@@ -109,8 +109,8 @@ class GitPush_WP {
             return;
         }
         
-        wp_enqueue_style('gitpush-wp-css', plugin_dir_url(__FILE__) . 'assets/css/admin.css', [], '1.0.0');
-        wp_enqueue_script('gitpush-wp-js', plugin_dir_url(__FILE__) . 'assets/js/admin.js', [], '1.0.0', true);
+        wp_enqueue_style('gitpush-wp-css', plugin_dir_url(__FILE__) . 'css/admin.css', [], '1.0.0');
+        wp_enqueue_script('gitpush-wp-js', plugin_dir_url(__FILE__) . 'js/admin.js', [], '1.0.0', true);
         
         wp_localize_script('gitpush-wp-js', 'gitpush_wp_obj', [
             'ajax_url' => admin_url('admin-ajax.php'),
