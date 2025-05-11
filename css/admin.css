@@ -1,0 +1,160 @@
+/**
+ * Admin CSS для GitPush WP
+ */
+.gitpush-wp-actions {
+    margin: 20px 0;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+#sync-status {
+    margin: 20px 0;
+    padding: 10px 15px;
+    border-left: 4px solid #00a0d2;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+    background: #fff;
+    display: none;
+}
+
+#sync-status.notice-success {
+    border-left-color: #46b450;
+}
+
+#sync-status.notice-error {
+    border-left-color: #dc3232;
+}
+
+.gitpush-wp-files {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+    padding: 15px;
+    margin-top: 20px;
+}
+
+.gitpush-wp-files h3 {
+    margin-top: 0;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.gitpush-wp-files .loading {
+    padding: 20px 0;
+    text-align: center;
+    font-style: italic;
+    color: #777;
+}
+
+.gitpush-wp-files .files-list {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    padding: 10px;
+    margin: 15px 0;
+}
+
+.gitpush-wp-files .file-list-actions {
+    margin-bottom: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+.gitpush-wp-files .commit-message-container {
+    margin: 15px 0;
+}
+
+.gitpush-wp-files .commit-message-container label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+.gitpush-wp-files ul.files-list {
+    list-style: none;
+    margin: 0;
+    padding: 10px;
+}
+
+.gitpush-wp-files ul.files-list li {
+    margin: 5px 0;
+    padding: 5px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+}
+
+.gitpush-wp-files ul.files-list li:hover {
+    background: #f9f9f9;
+}
+
+.gitpush-wp-files ul.files-list li.directory {
+    font-weight: 600;
+    margin-top: 10px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.gitpush-wp-files ul.files-list li input[type="checkbox"] {
+    margin-right: 10px;
+}
+
+.gitpush-wp-files ul.files-list li.directory > ul {
+    margin-left: 20px;
+    list-style: none;
+    display: none; /* Скрыто по умолчанию */
+}
+
+.gitpush-wp-files ul.files-list li.directory.expanded > ul {
+    display: block;
+}
+
+.gitpush-wp-files ul.files-list .toggle-dir {
+    cursor: pointer;
+    margin-right: 5px;
+    color: #0073aa;
+    user-select: none;
+}
+
+.sync-results {
+    margin-top: 15px;
+    padding: 10px;
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+}
+
+.sync-results ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.sync-results li {
+    padding: 5px;
+    border-bottom: 1px solid #eee;
+}
+
+.sync-results li:last-child {
+    border-bottom: none;
+}
+
+.sync-results li.success {
+    color: #46b450;
+}
+
+.sync-results li.error {
+    color: #dc3232;
+}
+
+/* Адаптивность для мобильных устройств */
+@media screen and (max-width: 782px) {
+    .gitpush-wp-actions,
+    .gitpush-wp-files .file-list-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .gitpush-wp-files .files-list {
+        max-height: 300px;
+    }
+}
