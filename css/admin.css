@@ -25,136 +25,289 @@
     border-left-color: #dc3232;
 }
 
-.gitpush-wp-files {
+/* Блок с информацией о репозитории */
+.repo-info-banner {
+    display: flex;
+    align-items: center;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px 15px;
+    margin: 15px 0;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.repo-info-icon {
+    margin-right: 10px;
+    font-size: 20px;
+    color: #24292e;
+}
+
+.repo-info-text {
+    font-size: 14px;
+}
+
+.repo-info-text strong {
+    color: #0366d6;
+}
+
+.repo-info-text .not-connected {
+    color: #cb2431;
+}
+
+/* Контейнер настроек */
+.gitpush-settings-container {
     background: #fff;
-    border: 1px solid #ccd0d4;
-    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
-    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 20px;
     margin-top: 20px;
 }
 
-.gitpush-wp-files h3 {
-    margin-top: 0;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 10px;
+.gitpush-settings-container .settings-actions {
+    margin-top: 20px;
+    border-top: 1px solid #eee;
+    padding-top: 20px;
 }
 
-.gitpush-wp-files .loading {
+.gitpush-notice {
+    background: #f8f9fa;
+    border-left: 4px solid #00a0d2;
+    padding: 12px 15px;
+    margin: 20px 0;
+}
+
+.gitpush-warning {
+    border-left-color: #ffb900;
+}
+
+/* Основной контейнер в стиле GitHub Desktop */
+.gitpush-container {
+    display: flex;
+    min-height: 500px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-top: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Панель со списком файлов (левая сторона) */
+.gitpush-files-panel {
+    width: 30%;
+    border-right: 1px solid #eee;
+    overflow-y: auto;
+    padding: 0;
+    background: #f8f9fa;
+}
+
+.gitpush-files-panel .file-list-actions {
+    padding: 10px;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    gap: 5px;
+}
+
+.gitpush-files-panel .loading {
     padding: 20px 0;
     text-align: center;
     font-style: italic;
     color: #777;
 }
 
-.gitpush-wp-files .files-list {
-    max-height: 400px;
+.gitpush-files-panel .files-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: none;
+}
+
+/* Панель для отображения дифа (правая сторона) */
+.gitpush-diff-panel {
+    width: 70%;
     overflow-y: auto;
-    border: 1px solid #ddd;
-    padding: 10px;
-    margin: 15px 0;
+    padding: 0;
+    background: #fff;
 }
 
-.gitpush-wp-files .file-list-actions {
-    margin-bottom: 15px;
+.gitpush-diff-panel .diff-header {
+    padding: 10px 15px;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ddd;
+}
+
+.gitpush-diff-panel .diff-header h3 {
+    margin: 0;
+    padding: 0;
+}
+
+.gitpush-diff-panel .diff-content {
+    padding: 15px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    line-height: 1.5;
+}
+
+/* Стилизация элементов файлового списка */
+.gitpush-files-panel ul.files-list li {
+    margin: 0;
+    padding: 8px 15px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
     display: flex;
-    gap: 10px;
+    align-items: center;
 }
 
-.gitpush-wp-files .commit-message-container {
-    margin: 15px 0;
+.gitpush-files-panel ul.files-list li:hover {
+    background: #f0f0f0;
 }
 
-.gitpush-wp-files .commit-message-container label {
+.gitpush-files-panel ul.files-list li.active {
+    background: #e0f0ff;
+}
+
+.gitpush-files-panel ul.files-list li.directory {
+    font-weight: 600;
+    background: #f0f0f0;
+}
+
+.gitpush-files-panel ul.files-list li input[type="checkbox"] {
+    margin-right: 10px;
+}
+
+.gitpush-files-panel ul.files-list li .file-icon {
+    margin-right: 8px;
+    width: 16px;
+    text-align: center;
+}
+
+/* Стили для статусов файлов */
+.gitpush-files-panel ul.files-list li.status-modified .file-status {
+    color: #e2a100;
+}
+
+.gitpush-files-panel ul.files-list li.status-new .file-status {
+    color: #28a745;
+}
+
+.gitpush-files-panel ul.files-list li.status-deleted .file-status {
+    color: #cb2431;
+}
+
+.gitpush-files-panel ul.files-list li .file-status {
+    margin-right: 8px;
+    width: 16px;
+    text-align: center;
+}
+
+/* Стили для отображения дифов */
+.gitpush-diff-line {
+    display: flex;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+.gitpush-diff-line-number {
+    width: 50px;
+    padding: 0 10px;
+    text-align: right;
+    color: #999;
+    user-select: none;
+    border-right: 1px solid #eee;
+}
+
+.gitpush-diff-line-content {
+    padding: 0 10px;
+    white-space: pre;
+    overflow-x: auto;
+}
+
+.gitpush-diff-line.added {
+    background-color: #e6ffed;
+}
+
+.gitpush-diff-line.added .gitpush-diff-line-number {
+    background-color: #cdffd8;
+    border-right-color: #bef5cb;
+}
+
+.gitpush-diff-line.removed {
+    background-color: #ffeef0;
+}
+
+.gitpush-diff-line.removed .gitpush-diff-line-number {
+    background-color: #ffdce0;
+    border-right-color: #fdaeb7;
+}
+
+/* Контейнер для кнопки коммита и сообщения */
+.gitpush-wp-commit {
+    margin: 20px 0;
+    padding: 15px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.gitpush-wp-commit .commit-message-container {
+    flex-grow: 1;
+    margin-right: 15px;
+}
+
+.gitpush-wp-commit .commit-message-container label {
     display: block;
     margin-bottom: 5px;
     font-weight: 600;
 }
 
-.gitpush-wp-files ul.files-list {
-    list-style: none;
-    margin: 0;
-    padding: 10px;
+.gitpush-wp-commit .commit-message-container input {
+    width: 100%;
 }
 
-.gitpush-wp-files ul.files-list li {
-    margin: 5px 0;
-    padding: 5px;
-    border-radius: 3px;
-    display: flex;
-    align-items: center;
+/* Стили для страницы настроек */
+.gitpush-wp-settings h2 {
+    margin-top: 30px;
 }
 
-.gitpush-wp-files ul.files-list li:hover {
-    background: #f9f9f9;
+/* Удаляем ненужные стили из предыдущей версии */
+.gitpush-wp-files {
+    display: none;
 }
 
-.gitpush-wp-files ul.files-list li.directory {
-    font-weight: 600;
-    margin-top: 10px;
-    border-bottom: 1px solid #f0f0f0;
-}
-
-.gitpush-wp-files ul.files-list li input[type="checkbox"] {
-    margin-right: 10px;
-}
-
-.gitpush-wp-files ul.files-list li.directory > ul {
-    margin-left: 20px;
-    list-style: none;
-    display: none; /* Скрыто по умолчанию */
-}
-
-.gitpush-wp-files ul.files-list li.directory.expanded > ul {
-    display: block;
-}
-
-.gitpush-wp-files ul.files-list .toggle-dir {
-    cursor: pointer;
-    margin-right: 5px;
-    color: #0073aa;
-    user-select: none;
-}
-
-.sync-results {
-    margin-top: 15px;
-    padding: 10px;
-    background: #f9f9f9;
-    border: 1px solid #ddd;
-    border-radius: 3px;
-}
-
-.sync-results ul {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.sync-results li {
-    padding: 5px;
-    border-bottom: 1px solid #eee;
-}
-
-.sync-results li:last-child {
-    border-bottom: none;
-}
-
-.sync-results li.success {
-    color: #46b450;
-}
-
-.sync-results li.error {
-    color: #dc3232;
+/* Дополнительные стили для меню */
+#adminmenu .toplevel_page_gitpush-wp .wp-menu-image.dashicons-cloud-upload:before {
+    content: '\f11b'; /* GitHub иконка */
+    font-family: dashicons;
 }
 
 /* Адаптивность для мобильных устройств */
 @media screen and (max-width: 782px) {
-    .gitpush-wp-actions,
-    .gitpush-wp-files .file-list-actions {
+    .gitpush-wp-actions {
         flex-direction: column;
         align-items: stretch;
     }
     
-    .gitpush-wp-files .files-list {
-        max-height: 300px;
+    .gitpush-container {
+        flex-direction: column;
+    }
+    
+    .gitpush-files-panel,
+    .gitpush-diff-panel {
+        width: 100%;
+    }
+    
+    .gitpush-wp-commit {
+        flex-direction: column;
+    }
+    
+    .gitpush-wp-commit .commit-message-container {
+        margin-right: 0;
+        margin-bottom: 15px;
+        width: 100%;
     }
 }
