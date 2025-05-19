@@ -11,17 +11,18 @@ class GitPush_Files_Manager {
     private $theme_path;
     private $github_files_tree_flat = null; 
 
-    const GITHUB_TREE_CACHE_KEY = 'gitpush_wp_github_tree_cache_v2'; // Изменил ключ для сброса старого кеша
+    const GITHUB_TREE_CACHE_KEY = 'gitpush_wp_github_tree_cache_v3'; // Обновил ключ для сброса
 
     public function __construct(GitPush_GitHub_API $api) {
         $this->api = $api;
-        $this->theme_path = trailingslashit(get_stylesheet_directory());
+        // Убедимся, что theme_path всегда заканчивается слешем
+        $this->theme_path = trailingslashit(get_stylesheet_directory()); 
     }
 
     public function clear_internal_caches() {
         $this->github_files_tree_flat = null;
         delete_transient(self::GITHUB_TREE_CACHE_KEY);
-        error_log('GitPush WP: Internal caches cleared.');
+        error_log('GitPush WP: Internal caches cleared by Files_Manager.');
     }
 
     public function get_github_files_tree_flat($force_refresh = false) {
@@ -34,30 +35,29 @@ class GitPush_Files_Manager {
         }
 
         $cached_tree = get_transient(self::GITHUB_TREE_CACHE_KEY);
-        if (!$force_refresh && $cached_tree !== false) { // get_transient возвращает false, если нет или просрочено
+        if (!$force_refresh && $cached_tree !== false) {
             $this->github_files_tree_flat = $cached_tree;
             error_log('GitPush WP: Fetched GitHub tree from transient cache. Items: ' . count($cached_tree));
             return $cached_tree;
         }
 
         $branch_name = $this->api->get_branch();
-        if (!$branch_name) {
-            error_log('GitPush WP: Branch name not available from API for get_repo_tree.');
+        if (empty($branch_name)) { // Проверка на пустую ветку
+            error_log('GitPush WP: Branch name is empty, cannot fetch repo tree.');
             return [];
         }
+        // Передаем имя ветки и флаг рекурсии
         $tree_items = $this->api->get_repo_tree($branch_name, true); 
 
         if (is_null($tree_items)) { 
-            error_log('GitPush WP: Failed to fetch GitHub tree from API (null returned by API method).');
-            // Возвращаем пустой массив, но не кешируем ошибку как пустой результат надолго, если это временная проблема API.
-            // Можно не устанавливать транзиент в этом случае или кешировать на очень короткое время.
+            error_log('GitPush WP: Failed to fetch GitHub tree from API (get_repo_tree returned null).');
             return []; 
         }
         
         $flat_tree = [];
         if (is_array($tree_items)) {
             foreach ($tree_items as $item) {
-                if (isset($item['type']) && $item['type'] === 'blob' && isset($item['path']) && isset($item['sha'])) { 
+                if (isset($item['type'], $item['path'], $item['sha']) && $item['type'] === 'blob') { 
                     $flat_tree[$item['path']] = [
                         'path' => $item['path'],
                         'sha' => $item['sha'],
@@ -65,6 +65,8 @@ class GitPush_Files_Manager {
                     ];
                 }
             }
+        } else {
+             error_log('GitPush WP: GitHub tree items from API is not an array. Response: ' . json_encode($tree_items));
         }
 
         set_transient(self::GITHUB_TREE_CACHE_KEY, $flat_tree, HOUR_IN_SECONDS);
@@ -75,13 +77,13 @@ class GitPush_Files_Manager {
 
     public function get_changed_files($force_refresh = false) {
         $github_files_flat = $this->get_github_files_tree_flat($force_refresh); 
-        $local_files_list = $this->get_theme_files($this->theme_path, $this->theme_path);
+        $local_files_list = $this->get_theme_files($this->theme_path, $this->theme_path); // base_dir = theme_path
 
         $changed_files_data = [];
         $processed_local_paths = [];
 
         foreach ($local_files_list as $local_file) {
-            if (!isset($local_file['path']) || (isset($local_file['type']) && $local_file['type'] === 'dir')) {
+            if (empty($local_file['path']) || (isset($local_file['type']) && $local_file['type'] === 'dir')) {
                 continue;
             }
             $relative_path = $local_file['path'];
@@ -89,20 +91,25 @@ class GitPush_Files_Manager {
             $full_local_path = $this->theme_path . $relative_path;
 
             if (!file_exists($full_local_path) || !is_readable($full_local_path)) {
-                error_log("GitPush WP: Local file listed but not found or not readable: " . $full_local_path);
+                error_log("GitPush WP: Local file listed but not found/readable for comparison: " . $full_local_path);
                 continue;
             }
             
-            $local_content = @file_get_contents($full_local_path); // Подавляем warning если файл исчезнет между scandir и file_get_contents
+            $local_content = @file_get_contents($full_local_path);
             if ($local_content === false) {
-                error_log("GitPush WP: Failed to read local file content for hashing: " . $full_local_path);
+                error_log("GitPush WP: Failed to read local file content for SHA calculation: " . $full_local_path);
                 continue;
             }
             $local_file_git_sha = $this->api->calculate_git_blob_sha($local_content);
+            if ($local_file_git_sha === null) {
+                 error_log("GitPush WP: Calculated local SHA is null for: " . $full_local_path);
+                 continue; // Не можем сравнить, если SHA null
+            }
+
 
             $file_data = [
                 'path' => $relative_path,
-                'status' => 'unknown',
+                'status' => 'unknown', // Статус по умолчанию
                 'type' => 'file' 
             ];
 
@@ -112,14 +119,19 @@ class GitPush_Files_Manager {
                 $file_data['status'] = 'new';
             } else {
                 if (isset($github_file_details['type']) && $github_file_details['type'] === 'file') {
-                    if ($github_file_details['sha'] !== $local_file_git_sha) {
+                    if (isset($github_file_details['sha']) && $github_file_details['sha'] !== $local_file_git_sha) {
                         $file_data['status'] = 'modified';
                         $file_data['github_sha'] = $github_file_details['sha']; 
-                    } else {
+                    } else if (!isset($github_file_details['sha'])) {
+                        // На GitHub есть запись, но нет SHA? Странно, считаем измененным.
+                        $file_data['status'] = 'modified';
+                         error_log("GitPush WP: GitHub file item for {$relative_path} has no SHA. Treating as modified.");
+                    }
+                    else { // SHA совпадает
                         continue; 
                     }
                 } else {
-                    error_log("GitPush WP: Path on GitHub is not a file ('".($github_file_details['type'] ?? 'unknown type')."'), but local is: " . $relative_path);
+                    error_log("GitPush WP: Path on GitHub ('".$relative_path."') is not a file type ('".($github_file_details['type'] ?? 'unknown type')."'). Treating local as 'new'.");
                     $file_data['status'] = 'new'; 
                 }
             }
@@ -137,24 +149,27 @@ class GitPush_Files_Manager {
                 $changed_files_data[$github_path] = [
                     'path' => $github_path,
                     'status' => 'deleted',
-                    'github_sha' => $github_item_details['sha'], 
+                    'github_sha' => $github_item_details['sha'] ?? null, 
                     'type' => 'file'
                 ];
             }
         }
         return array_values($changed_files_data); 
     }
-
+    
     public function get_theme_files($dir, $base_dir) {
         $files = array();
+        // Гарантируем, что base_dir всегда заканчивается слешем для корректной замены
+        $normalized_base_dir = trailingslashit($base_dir);
+
         if (!is_dir($dir) || !is_readable($dir)) {
-            error_log("GitPush WP: Cannot scan directory, not a directory or not readable: " . $dir);
+            error_log("GitPush WP: Cannot scan theme directory, not a directory or not readable: " . $dir);
             return $files;
         }
         $items = @scandir($dir);
 
         if ($items === false) {
-            error_log("GitPush WP: Failed to scan directory (scandir returned false): " . $dir);
+            error_log("GitPush WP: Failed to scan theme directory (scandir returned false): " . $dir);
             return $files;
         }
 
@@ -163,22 +178,30 @@ class GitPush_Files_Manager {
                 continue;
             }
             
-            $path = $dir . $item; 
-            // Нормализуем $base_dir чтобы он всегда заканчивался слешем для корректного str_replace
-            $normalized_base_dir = trailingslashit($base_dir);
+            $path = trailingslashit($dir) . $item; 
+            // Относительный путь формируется вычитанием $normalized_base_dir из $path
+            // ltrim убирает возможный ведущий слеш, если $path и $normalized_base_dir были одинаковы
             $relative_path_item = ltrim(str_replace($normalized_base_dir, '', $path), '/\\'); 
 
-            if ($this->is_ignored($item) || (!empty($relative_path_item) && $this->is_ignored($relative_path_item)) ) {
+            if (empty($relative_path_item) && is_dir($path)) { // Это сама базовая директория
+                 $files = array_merge($files, $this->get_theme_files($path, $base_dir)); // Рекурсия без добавления самой базовой директории
+                 continue;
+            }
+            
+            // Игнорируем по полному относительному пути или по базовому имени
+            if ($this->is_ignored($relative_path_item) || $this->is_ignored(basename($relative_path_item))) {
                 continue;
             }
             
             if (is_dir($path)) {
-                $files = array_merge($files, $this->get_theme_files(trailingslashit($path), $base_dir));
+                $files = array_merge($files, $this->get_theme_files($path, $base_dir));
             } else {
-                 if (!empty($relative_path_item)) { // Добавляем только если есть относительный путь (не сам base_dir)
+                 // Добавляем только если это файл и у него есть относительный путь
+                 if (!empty($relative_path_item)) {
                     $files[] = [
                         'path' => $relative_path_item,
-                        'type' => 'file'
+                        'type' => 'file' 
+                        // 'extension' и другие детали не нужны для get_changed_files
                     ];
                 }
             }
@@ -187,17 +210,25 @@ class GitPush_Files_Manager {
     }
 
     private function is_ignored($path_segment) {
-        $ignored_exact_names = ['.git', '.svn', '.DS_Store', 'node_modules', 'vendor', '.vscode', '.idea', 'desktop.ini', 'thumbs.db', 'wp-content', 'wp-admin', 'wp-includes'];  
-        $ignored_paths_start_with = ['cache/', '.wp-env/', 'logs/']; 
-        
+        // Проверяем пустой сегмент (может случиться при неаккуратном формировании пути)
+        if (empty(trim($path_segment))) {
+            return false; 
+        }
+
+        $ignored_exact_names = ['.git', '.svn', '.DS_Store', 'node_modules', 'vendor', '.vscode', '.idea', 'desktop.ini', 'thumbs.db'];  
+        $ignored_paths_start_with = ['wp-content/', 'wp-admin/', 'wp-includes/', 'cache/', '.wp-env/', 'logs/']; 
+        // $ignored_extensions = ['.log', '.tmp', '.bak', '.swp'];
+
         $basename = basename($path_segment);
 
         if (in_array($basename, $ignored_exact_names, true)) {
+             // error_log("GitPush WP: Ignoring by exact name: " . $path_segment);
             return true;
         }
        
         foreach ($ignored_paths_start_with as $ignored_start) {
             if (strpos($path_segment, $ignored_start) === 0) {
+                // error_log("GitPush WP: Ignoring by path start: " . $path_segment);
                 return true;
             }
         }
@@ -212,61 +243,90 @@ class GitPush_Files_Manager {
             return ['info' => 'No files selected to sync.', 'results_summary' => []]; 
         }
 
-        $all_changed_files_details = $this->get_changed_files(true); // Получаем свежайший список перед синхронизацией
+        // Получаем актуальные детали для выбранных файлов
+        $all_changed_files_details = $this->get_changed_files(true); 
         $files_to_process_map = [];
         foreach ($all_changed_files_details as $file) {
             if (isset($file['path']) && in_array($file['path'], $selected_files_paths, true)) {
                 $files_to_process_map[$file['path']] = $file;
             }
         }
+        // Добавляем файлы, которые были выбраны, но могли не попасть в $all_changed_files_details (например, если они 'unchanged', но пользователь все равно выбрал)
+        // Это сложнее, так как для них нужен будет SHA с GitHub для корректного push (если это обновление)
+        // Пока упростим: работаем только с теми, что есть в $files_to_process_map из $all_changed_files_details
+        // Если файл выбран, но не в $files_to_process_map, значит он либо unchanged, либо ошибка в get_changed_files
 
         $results_summary = [];
 
         foreach ($selected_files_paths as $relative_path) {
             if (!isset($files_to_process_map[$relative_path])) {
-                $results_summary[] = ['path' => $relative_path, 'status' => 'Error: File details not found for sync. Refresh list and try again.'];
-                error_log("GitPush WP: File {$relative_path} selected for sync but its details not found in current change set.");
-                continue;
-            }
+                // Файл был выбран, но не определен как 'new', 'modified', or 'deleted'.
+                // Это может быть 'unchanged' файл. Попробуем его просто запушить (создать/обновить).
+                // Для этого нужно получить его текущий SHA с GitHub.
+                error_log("GitPush WP: File {$relative_path} selected but not in determined changes. Attempting direct push/update.");
+                $file_info_temp = ['path' => $relative_path, 'status' => 'unknown']; // Временный статус
+                $full_local_path_temp = $this->theme_path . $relative_path;
 
-            $file_info = $files_to_process_map[$relative_path];
-            $full_local_path = $this->theme_path . $relative_path;
-            $push_result = null;
-
-            switch ($file_info['status']) {
-                case 'deleted':
-                    if (empty($file_info['github_sha'])) {
-                        $results_summary[] = ['path' => $relative_path, 'status_text' => 'Error: GitHub SHA missing for deleted file.', 'type' => 'error'];
-                        error_log("GitPush WP: GitHub SHA missing for deleted file {$relative_path}.");
-                        continue 2; 
-                    }
-                    $push_result = $this->api->delete_file($relative_path, $commit_message . " (delete {$relative_path})", $file_info['github_sha']);
-                    break;
-                case 'new':
-                case 'modified':
-                    if (!file_exists($full_local_path) || !is_readable($full_local_path)) {
-                        $results_summary[] = ['path' => $relative_path, 'status_text' => 'Error: Local file not found or not readable.', 'type' => 'error'];
-                        error_log("GitPush WP: Local file {$full_local_path} not found/readable for push (status: {$file_info['status']}).");
-                        continue 2; 
-                    }
-                    $content = @file_get_contents($full_local_path);
-                    if ($content === false) {
+                if (file_exists($full_local_path_temp) && is_readable($full_local_path_temp)) {
+                    $content_temp = @file_get_contents($full_local_path_temp);
+                    if ($content_temp !== false) {
+                        $gh_file_details_temp = $this->api->get_file_content($relative_path);
+                        $existing_sha_temp = null;
+                        if ($gh_file_details_temp && !isset($gh_file_details_temp['not_found']) && isset($gh_file_details_temp['sha'])) {
+                            $existing_sha_temp = $gh_file_details_temp['sha'];
+                        }
+                        $final_commit_message_temp = $commit_message . " (force sync {$relative_path})";
+                        $push_result = $this->api->push_file($relative_path, $content_temp, $final_commit_message_temp, $existing_sha_temp);
+                        $file_info = $file_info_temp; // Для формирования ответа
+                    } else {
                          $results_summary[] = ['path' => $relative_path, 'status_text' => 'Error: Could not read local file content.', 'type' => 'error'];
-                         error_log("GitPush WP: Failed to read content of {$full_local_path} for push.");
-                         continue 2;
+                         continue;
                     }
-                    $final_commit_message = $commit_message . " ({$file_info['status']} {$relative_path})";
-                    $github_sha_for_update = ($file_info['status'] === 'modified' && isset($file_info['github_sha'])) ? $file_info['github_sha'] : null;
-                    $push_result = $this->api->push_file($relative_path, $content, $final_commit_message, $github_sha_for_update);
-                    break;
-                default:
-                    $results_summary[] = ['path' => $relative_path, 'status_text' => 'Error: Unknown file status for sync: ' . ($file_info['status'] ?? 'N/A'), 'type' => 'error'];
-                    error_log("GitPush WP: Unknown file status '{$file_info['status']}' for file {$relative_path}");
-                    continue 2;
+                } else {
+                     $results_summary[] = ['path' => $relative_path, 'status_text' => 'Error: Local file not found or not readable.', 'type' => 'error'];
+                    continue;
+                }
+
+            } else { // Файл найден в $files_to_process_map
+                $file_info = $files_to_process_map[$relative_path];
+                $full_local_path = $this->theme_path . $relative_path;
+                $push_result = null;
+
+                switch ($file_info['status']) {
+                    case 'deleted':
+                        if (empty($file_info['github_sha'])) {
+                            $results_summary[] = ['path' => $relative_path, 'status_text' => 'Error: GitHub SHA missing for deleted file.', 'type' => 'error'];
+                            error_log("GitPush WP: GitHub SHA missing for deleted file {$relative_path}.");
+                            continue 2; 
+                        }
+                        $push_result = $this->api->delete_file($relative_path, $commit_message . " (delete {$relative_path})", $file_info['github_sha']);
+                        break;
+                    case 'new':
+                    case 'modified':
+                        if (!file_exists($full_local_path) || !is_readable($full_local_path)) {
+                            $results_summary[] = ['path' => $relative_path, 'status_text' => 'Error: Local file not found or not readable.', 'type' => 'error'];
+                            error_log("GitPush WP: Local file {$full_local_path} not found/readable for push (status: {$file_info['status']}).");
+                            continue 2; 
+                        }
+                        $content = @file_get_contents($full_local_path);
+                        if ($content === false) {
+                            $results_summary[] = ['path' => $relative_path, 'status_text' => 'Error: Could not read local file content.', 'type' => 'error'];
+                            error_log("GitPush WP: Failed to read content of {$full_local_path} for push.");
+                            continue 2;
+                        }
+                        $final_commit_message = $commit_message . " ({$file_info['status']} {$relative_path})";
+                        $github_sha_for_update = ($file_info['status'] === 'modified' && isset($file_info['github_sha'])) ? $file_info['github_sha'] : null;
+                        $push_result = $this->api->push_file($relative_path, $content, $final_commit_message, $github_sha_for_update);
+                        break;
+                    default:
+                        $results_summary[] = ['path' => $relative_path, 'status_text' => 'Error: Unknown file status for sync: ' . ($file_info['status'] ?? 'N/A'), 'type' => 'error'];
+                        error_log("GitPush WP: Unknown file status '{$file_info['status']}' for file {$relative_path}");
+                        continue 2;
+                }
             }
             
             if (isset($push_result['success']) && $push_result['success']) {
-                $status_text = $push_result['status'] ?? (($file_info['status'] === 'deleted') ? 'Deleted' : 'Synced');
+                $status_text = $push_result['status_text'] ?? (($file_info['status'] === 'deleted') ? 'Deleted' : 'Synced');
                 $results_summary[] = ['path' => $relative_path, 'status_text' => ucfirst($status_text), 'type' => 'success' ];
             } else {
                 $error_msg = $push_result['error'] ?? 'Unknown API error during operation.';
@@ -285,7 +345,11 @@ class GitPush_Files_Manager {
         $github_content_data = $this->api->get_file_content($relative_path);
 
         $local_exists = file_exists($full_local_path) && is_readable($full_local_path);
-        $local_content = $local_exists ? file_get_contents($full_local_path) : null;
+        $local_content = $local_exists ? @file_get_contents($full_local_path) : null;
+         if ($local_exists && $local_content === false) {
+            error_log("GitPush WP (get_file_diff): Failed to read local file content {$full_local_path}");
+            return ['error' => 'Failed to read local file content for diff.'];
+        }
 
         $github_content = null;
         $github_sha = null;
@@ -298,37 +362,50 @@ class GitPush_Files_Manager {
         } elseif (isset($github_content_data['not_found']) && $github_content_data['not_found']) {
             $file_on_github = false;
         } elseif (isset($github_content_data['error'])) {
-             return ['local_content' => $local_content ?? '', 'github_content' => '', 'status' => 'error_github', 'error_message' => 'GitHub API Error: ' . $github_content_data['error']];
+             return ['status' => 'error_github', 'error_message' => 'GitHub API Error for diff: ' . $github_content_data['error']];
         }
-
 
         $status = 'unknown';
         if ($local_exists && $file_on_github) {
-            $status = (rtrim($local_content, "\n\r") === rtrim($github_content, "\n\r")) ? 'unchanged' : 'modified';
+            $status = (rtrim((string)$local_content, "\n\r") === rtrim((string)$github_content, "\n\r")) ? 'unchanged' : 'modified';
         } elseif ($local_exists && !$file_on_github) {
-            $status = 'new'; // Новый локальный файл
+            $status = 'new';
         } elseif (!$local_exists && $file_on_github) {
-            $status = 'deleted'; // Удален локально
-        } elseif (!$local_exists && !$file_on_github) {
-            return ['local_content' => '', 'github_content' => '', 'status' => 'not_exists', 'error_message' => 'File does not exist locally or on GitHub.'];
+            $status = 'deleted'; 
+        } elseif (!$local_exists && !$file_on_github) { // Это не должно происходить, если файл в списке измененных
+            return ['status' => 'not_exists', 'error_message' => 'File does not exist locally or on GitHub.'];
         }
         
-        // Для diff
+        $return_data = [
+            'local_content' => $local_content ?? '', 
+            'github_content' => $github_content ?? '', 
+            'status' => $status, 
+            'github_sha' => $github_sha,
+            'diff_output' => '' // По умолчанию
+        ];
+
         if ($status === 'modified' || $status === 'new' || $status === 'deleted') {
-            if (!class_exists('WP_Text_Diff_Renderer_Table')) { // WP_Text_Diff_Renderer_inline может не существовать без этого
+            if (!class_exists('WP_Text_Diff_Renderer_Table')) { 
                 require_once(ABSPATH . WPINC . '/wp-diff.php');
             }
             
-            $local_lines  = $local_exists ? explode("\n", $local_content) : [];
-            $github_lines = $file_on_github ? explode("\n", $github_content) : [];
+            $local_lines  = $local_exists ? explode("\n", (string)$local_content) : [];
+            $github_lines = $file_on_github ? explode("\n", (string)$github_content) : [];
 
+            $diff_params = ['ignore_ws' => false, 'ignore_blanks' => false, 'ignore_case' => false]; // Параметры по умолчанию для WP_Text_Diff
             $diff = new Text_Diff('auto', [$github_lines, $local_lines]); 
-            $renderer = new WP_Text_Diff_Renderer_inline(['split_words' => true]); // Используем inline и пробуем разбивку по словам
+            
+            $renderer = new WP_Text_Diff_Renderer_inline(['split_words' => true]); 
             $diff_output = $renderer->render($diff);
             
-            return ['local_content' => $local_content ?? '', 'github_content' => $github_content ?? '', 'status' => $status, 'diff_output' => $diff_output, 'github_sha' => $github_sha];
+            if(empty($diff_output) && $status === 'modified') { 
+                 $return_data['diff_output'] = "// Files differ, but visual inline diff is empty (possibly only whitespace changes or EOL).\n// Local content (" . strlen($local_content) . " bytes) vs GitHub content (" . strlen($github_content) . " bytes)";
+            } else {
+                $return_data['diff_output'] = $diff_output;
+            }
+        } elseif ($status === 'unchanged') {
+             $return_data['diff_output'] = $local_content ?? '// File is unchanged.';
         }
-
-        return ['local_content' => $local_content ?? '', 'github_content' => $github_content ?? '', 'status' => $status, 'github_sha' => $github_sha];
+        return $return_data;
     }
 }

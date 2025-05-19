@@ -16,7 +16,7 @@ class GitPush_AJAX_Handler {
         $this->files_manager = $files_manager ?: new GitPush_Files_Manager($this->github_api); 
         
         add_action('wp_ajax_github_test_connection', [$this, 'ajax_test_connection']);
-        add_action('wp_ajax_github_get_theme_files', [$this, 'ajax_get_theme_files']); // Может быть устаревшим
+        add_action('wp_ajax_github_get_theme_files', [$this, 'ajax_get_theme_files']); // Обработчик для "All Files"
         add_action('wp_ajax_github_get_changed_files', [$this, 'ajax_get_changed_files']);
         add_action('wp_ajax_github_get_file_diff', [$this, 'ajax_get_file_diff']);
         add_action('wp_ajax_github_sync_theme', [$this, 'ajax_sync_theme']);
@@ -27,7 +27,6 @@ class GitPush_AJAX_Handler {
         check_ajax_referer($nonce_action, 'nonce');
         if (!current_user_can('manage_options')) {
             wp_send_json_error(['message' => 'Permission denied.']);
-            // wp_die() здесь не нужен, так как wp_send_json_error уже завершает выполнение
         }
         return true;
     }
@@ -46,9 +45,28 @@ class GitPush_AJAX_Handler {
     public function ajax_get_theme_files() {
         $this->check_permissions_and_nonce();
         $theme_path = trailingslashit(get_stylesheet_directory());
-        // Убедитесь, что get_theme_files в Files_Manager возвращает ожидаемый формат (массив файлов с ключом 'path')
-        $files = $this->files_manager->get_theme_files($theme_path, $theme_path); 
-        wp_send_json_success(['files' => $files]); // theme_dir не нужен, если пути уже относительные
+        $local_files = $this->files_manager->get_theme_files($theme_path, $theme_path); 
+        
+        $files_for_js = [];
+        if (is_array($local_files)) {
+            foreach ($local_files as $file) {
+                if (isset($file['path'])) {
+                    // Для "All Files" мы не знаем их статус относительно GitHub без сравнения.
+                    // Присвоим 'unknown', чтобы JS мог их отобразить.
+                    // JS renderFileList ожидает 'status' и 'type' (type уже есть из get_theme_files)
+                    $file_entry = [
+                        'path' => $file['path'],
+                        'status' => 'unknown', // Или 'local' для ясности, но JS должен это понимать
+                        'type' => $file['type'] ?? 'file' // get_theme_files должен возвращать type
+                    ];
+                    // Если get_theme_files не возвращает type, нужно добавить:
+                    // if (!isset($file_entry['type'])) $file_entry['type'] = 'file'; 
+                    $files_for_js[] = $file_entry;
+                }
+            }
+        }
+        // Отправляем в формате, который ожидает JS-функция fetchFiles -> renderFileList (т.е. в ключе 'changed_files')
+        wp_send_json_success(['changed_files' => $files_for_js]); 
     }
     
     public function ajax_get_file_diff() {
@@ -65,7 +83,7 @@ class GitPush_AJAX_Handler {
         if (isset($diff_data['error'])) {
              wp_send_json_error(['message' => $diff_data['error'], 'data' => $diff_data]);
         } else {
-             wp_send_json_success(['data' => $diff_data]); // Возвращаем весь объект с diff, status и т.д.
+             wp_send_json_success(['data' => ['diff' => $diff_data]]); // Убедимся, что JS ожидает data.diff
         }
     }
     
@@ -93,7 +111,6 @@ class GitPush_AJAX_Handler {
         $changed_files = $this->files_manager->get_changed_files($force_refresh);
         
         if (is_array($changed_files)) {
-            // Отправляем массив файлов напрямую, JS будет ожидать его в response.data.changed_files
             wp_send_json_success(['changed_files' => $changed_files]); 
         } else {
             error_log('GitPush WP: ajax_get_changed_files received non-array from files_manager->get_changed_files');
@@ -110,7 +127,6 @@ class GitPush_AJAX_Handler {
             return;
         }
         
-        // JavaScript отправляет JSON строку в $_POST['files']
         $selected_files_json = isset($_POST['files']) ? wp_unslash($_POST['files']) : '[]';
         $paths_to_sync = json_decode($selected_files_json, true); 
 
@@ -122,9 +138,9 @@ class GitPush_AJAX_Handler {
         if (empty($paths_to_sync)) {
             wp_send_json_success([
                 'message' => 'No files were selected to sync.',
-                'results' => [], // Был 'files', меняем на 'results' для единообразия с JS
+                'results' => [], 
                 'changed_files' => $this->files_manager->get_changed_files(false), 
-                'sync_time' => current_time('Y-m-d H:i:s') // Был 'synced_at'
+                'sync_time' => current_time('Y-m-d H:i:s') 
             ]);
             return;
         }
@@ -133,25 +149,31 @@ class GitPush_AJAX_Handler {
         $changed_files_after_sync = $this->files_manager->get_changed_files(true); 
 
         $has_errors = false;
+        $error_message_summary = 'Sync process completed with errors.';
+
         if (isset($results['error'])) { 
             $has_errors = true;
-        } elseif (is_array($results)) { // $results теперь $results_summary из Files_Manager
+            $error_message_summary = $results['error'];
+        } elseif (is_array($results)) { 
             foreach($results as $result_item) {
                 if (isset($result_item['type']) && $result_item['type'] === 'error') {
                     $has_errors = true;
+                    if (isset($result_item['status_text'])) { // Предполагаем, что status_text содержит сообщение об ошибке
+                        $error_message_summary = $result_item['status_text']; // Можно взять первое сообщение об ошибке
+                    }
                     break;
                 }
             }
         }
 
         $response_data = [
-            'results'       => $results, // $results теперь $results_summary
+            'results'       => $results, 
             'changed_files' => $changed_files_after_sync,
             'sync_time'     => current_time('Y-m-d H:i:s')
         ];
 
         if ($has_errors) {
-            $response_data['message'] = isset($results['error']) ? $results['error'] : 'Sync process completed with errors.';
+            $response_data['message'] = $error_message_summary;
             wp_send_json_error($response_data);
         } else {
             $response_data['message'] = 'Theme synced successfully!';
