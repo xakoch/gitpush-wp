@@ -29,7 +29,7 @@ class GitPush_Admin_UI {
             'manage_options',
             'gitpush-wp',
             [$this, 'render_main_page'],
-            'dashicons-cloud-upload',
+            'dashicons-cloud-upload', // Можно заменить на 'dashicons-github' если такая иконка станет доступна или использовать SVG
             100
         );
         
@@ -39,7 +39,7 @@ class GitPush_Admin_UI {
             'Sync Files', 
             'Sync Files',
             'manage_options',
-            'gitpush-wp',
+            'gitpush-wp', // Используем тот же slug, что и у родительского меню
             [$this, 'render_main_page']
         );
         
@@ -208,7 +208,7 @@ class GitPush_Admin_UI {
             <?php if (empty($this->github_api->get_settings()['github_username']) || empty($this->github_api->get_settings()['github_repo'])): ?>
             <div class="gitpush-notice">
                 <p>Please configure your GitHub settings to use GitPush WP.</p>
-                <p>After saving settings, test your connection, then go to <a href="<?php echo admin_url('admin.php?page=gitpush-wp'); ?>">Sync Files</a> page to push/pull your theme files.</p>
+                <p>After saving settings, test your connection, then go to <a href="<?php echo admin_url('admin.php?page=gitpush-wp'); ?>">Sync Files</a> page to push your theme files.</p>
             </div>
             <?php endif; ?>
         </div>
@@ -236,14 +236,13 @@ class GitPush_Admin_UI {
                 </div>
             <?php else: ?>
                 <div class="gitpush-wp-actions">
-                    <button id="pull-from-github" class="button button-secondary">Pull from GitHub</button>
-                    <button id="sync-theme" class="button button-primary">Push to GitHub</button>
+                    <?php /* <button id="pull-from-github" class="button button-secondary">Pull from GitHub</button> -- Кнопка Pull удалена */ ?>
+                    <button id="sync-theme" class="button button-primary">Push to GitHub</button> <?php // Эта кнопка сейчас не используется в JS, используется "Commit Selected Files" ?>
                 </div>
                 
                 <div id="sync-status"></div>
                 
                 <div id="gitpush-container" class="gitpush-container">
-                    <!-- Панель со списком файлов -->
                     <div class="gitpush-files-panel">
                         <div class="file-list-actions">
                             <button id="refresh-files" class="button">Refresh Files</button>
@@ -255,7 +254,6 @@ class GitPush_Admin_UI {
                         <ul class="files-list"></ul>
                     </div>
                     
-                    <!-- Панель для отображения дифа -->
                     <div class="gitpush-diff-panel">
                         <div class="diff-header">
                             <h3>File Changes</h3>
@@ -263,7 +261,6 @@ class GitPush_Admin_UI {
                         </div>
                         <div class="diff-content"></div>
                         
-                        <!-- Секция с историей коммитов -->
                         <div class="commit-history-section">
                             <h4>Commit History</h4>
                             <div class="commit-history-content"></div>

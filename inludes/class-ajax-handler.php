@@ -17,7 +17,7 @@ class GitPush_AJAX_Handler {
         add_action('wp_ajax_github_get_changed_files', [$this, 'ajax_get_changed_files']);
         add_action('wp_ajax_github_get_file_diff', [$this, 'ajax_get_file_diff']);
         add_action('wp_ajax_github_sync_theme', [$this, 'ajax_sync_theme']);
-        add_action('wp_ajax_github_pull_from_github', [$this, 'ajax_pull_from_github']);
+        // add_action('wp_ajax_github_pull_from_github', [$this, 'ajax_pull_from_github']); // Обработчик Pull удален
         add_action('wp_ajax_github_get_file_commits', [$this, 'ajax_get_file_commits']);
     }
     
@@ -138,15 +138,16 @@ class GitPush_AJAX_Handler {
         $settings = $this->github_api->get_settings();
         
         wp_send_json_success([
-            'message' => 'Sync completed',
+            'message' => 'Sync completed', // Это сообщение может быть преждевременным, если были ошибки
             'results' => $results,
             'sync_time' => $settings['last_sync']
         ]);
     }
     
     /**
-     * Pull файлов с GitHub
+     * Pull файлов с GitHub -- ФУНКЦИЯ УДАЛЕНА
      */
+    /*
     public function ajax_pull_from_github() {
         $this->check_permissions();
         
@@ -159,4 +160,5 @@ class GitPush_AJAX_Handler {
             'pull_time' => $pull_result['pull_time']
         ]);
     }
+    */
 }
