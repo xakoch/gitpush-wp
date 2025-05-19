@@ -74,7 +74,7 @@ function gitpush_wp_init() {
     // Это немного оптимизирует загрузку, если классы не нужны на каждой странице
     if (is_admin()) { // Функционал плагина только для админ-панели
         $api = new GitPush_GitHub_API();
-        $files_manager = new GitPush_Files_Manager(); // GitHub_API уже будет инстанцирован внутри него
+        $files_manager = new GitPush_Files_Manager($api); // GitHub_API уже будет инстанцирован внутри него
         $admin_ui = new GitPush_Admin_UI($api, $files_manager);
         $ajax_handler = new GitPush_AJAX_Handler($api, $files_manager);
     }
@@ -92,7 +92,9 @@ function gitpush_wp_enqueue_scripts($hook) {
     wp_enqueue_style('gitpush-wp-admin-css', GITPUSH_WP_URL . 'css/admin.css', [], GITPUSH_WP_VERSION);
     
     // Подключаем JavaScript
-    wp_enqueue_script('gitpush-wp-admin-js', GITPUSH_WP_URL . 'js/admin.js', [], GITPUSH_WP_VERSION, true);
+    wp_localize_script('gitpush-wp-admin-js', 'gitpush_wp_obj', [ // Или как называется ваш JS-объект
+        'nonce' => wp_create_nonce('gitpush_nonce'), // Убедитесь, что здесь 'gitpush_nonce'
+    ]);
     
     // Добавляем highlight.js для подсветки синтаксиса в дифах
     wp_enqueue_style('highlight-js-css', 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css'); // Версия обновлена

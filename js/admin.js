@@ -1,7 +1,7 @@
 /**
  * Admin JavaScript для GitPush WP
  */
-document.addEventListener('DOMContentLoaded', function() {
+jQuery(document).ready(function($) {
     // Определяем текущую страницу
     const currentPage = window.location.href.includes('page=gitpush-wp-settings') 
         ? 'settings' 
@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
                 body: new URLSearchParams({
-                    action: 'github_get_theme_files',
+                    action: 'github_get_changed_files',
                     nonce: gitpush_wp_obj.nonce
                 })
             });
@@ -566,4 +566,100 @@ document.addEventListener('DOMContentLoaded', function() {
         // Можно добавить сообщение или оставить как есть, т.к. PHP должен выводить предупреждение
          console.warn("GitPush WP: Sync page loaded, but main container not found. GitHub might not be configured.");
     }
+
+    // Фрагмент для js/admin.js
+
+    function display_changed_files(files) {
+        var listHtml = '';
+        var fileList = $('#gitpush-changed-files-list');
+        var noChangesMessage = $('#gitpush-no-changes');
+
+        if (files && files.length > 0) {
+            listHtml = '<ul>';
+            files.forEach(function(file) {
+                if (typeof file.path === 'undefined' || file.path === null) {
+                    console.warn('File with undefined path skipped:', file);
+                    return; // Пропустить этот файл
+                }
+
+                var fileStatusIcon = '';
+                var fileStatusClass = '';
+                var statusText = ''; // Текстовое описание статуса
+
+                switch(file.status) {
+                    case 'new':
+                        fileStatusIcon = '<span class="dashicons dashicons-plus-alt2 gitpush-status-new"></span>';
+                        fileStatusClass = 'gitpush-file-new';
+                        statusText = 'New';
+                        break;
+                    case 'modified':
+                        fileStatusIcon = '<span class="dashicons dashicons-edit gitpush-status-modified"></span>';
+                        fileStatusClass = 'gitpush-file-modified';
+                        statusText = 'Modified';
+                        break;
+                    case 'deleted':
+                        fileStatusIcon = '<span class="dashicons dashicons-minus gitpush-status-deleted"></span>';
+                        fileStatusClass = 'gitpush-file-deleted';
+                        statusText = 'Deleted';
+                        break;
+                    default:
+                        fileStatusIcon = '<span class="dashicons dashicons-info-outline"></span>'; // Для неизвестных или не отслеживаемых
+                        fileStatusClass = 'gitpush-file-unknown';
+                        statusText = 'Unknown';
+                }
+                // Используем escape для file.path, если он может содержать спецсимволы, но для простого отображения обычно не критично
+                listHtml += '<li class="' + fileStatusClass + '">' +
+                            '<input type="checkbox" name="selected_files[]" value="' + file.path.replace(/"/g, '&quot;') + '" checked data-status="' + file.status + '"> ' +
+                            fileStatusIcon + ' ' + file.path +
+                            ' <span class="file-status-text">(' + statusText + ')</span>' +
+                            '</li>';
+            });
+            listHtml += '</ul>';
+            fileList.html(listHtml);
+            noChangesMessage.hide();
+            fileList.show();
+        } else {
+            fileList.empty().hide();
+            noChangesMessage.show();
+        }
+    }
+
+    // Убедитесь, что остальная часть admin.js (обработчики кликов, AJAX-запросы)
+    // корректно вызывает display_changed_files с данными от сервера.
+    // Особенно важно, чтобы после успешного AJAX-запроса на push,
+    // response.data.changed_files содержал АКТУАЛЬНЫЙ список измененных файлов
+    // (который должен быть пустым, если все выбранные файлы успешно отправлены).
+
+    // Пример обработчика для кнопки "Refresh Files":
+    $('#gitpush-refresh-button').on('click', function() {
+        var $this = $(this);
+        var originalText = $this.text();
+        $this.text('Refreshing...');
+        $('#gitpush-changed-files-list').html('<li>Loading...</li>');
+        $('#gitpush-no-changes').hide();
+
+        $.post(ajaxurl, { action: 'gitpush_get_changed_files', nonce: gitpush_vars.nonce, force_refresh: true }, function(response) {
+            if (response.success) {
+                display_changed_files(response.data.changed_files);
+            } else {
+                $('#gitpush-changed-files-list').html('<li>Error loading files: ' + response.data.message + '</li>');
+            }
+            $this.text(originalText);
+        }).fail(function() {
+            $('#gitpush-changed-files-list').html('<li>Request failed. Please try again.</li>');
+            $this.text(originalText);
+        });
+    });
+
+
+    // Пример части обработчика для кнопки "Push to GitHub"
+    //$('#gitpush-push-button').on('click', function() {
+    // ... ваш существующий AJAX-запрос ...
+    // Внутри .done() или success callback:
+    // if (response.success) {
+    //     ...
+    //     display_changed_files(response.data.changed_files); // ОБЯЗАТЕЛЬНО обновить список файлов
+    //     ...
+    // }
+    //});
 });

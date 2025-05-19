@@ -427,3 +427,78 @@
         width: 100%;
     }
 }
+
+/* Стили для списка измененных файлов */
+#gitpush-changed-files-list ul {
+    list-style-type: none;
+    padding-left: 0;
+    margin-top: 0;
+}
+
+#gitpush-changed-files-list li {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    margin-bottom: -1px; /* Для эффекта "таблицы" */
+    display: flex; /* Для лучшего выравнивания иконки и текста */
+    align-items: center;
+}
+
+#gitpush-changed-files-list li input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+#gitpush-changed-files-list li .dashicons {
+    margin-right: 5px;
+    font-size: 18px; /* Немного уменьшить, если стандартные кажутся большими */
+}
+
+/* Статус: Новый (зеленый) */
+.gitpush-file-new {
+    background-color: #e6ffed; /* Светло-зеленый фон */
+    border-left: 3px solid #22863a; /* Зеленая полоска слева */
+}
+.gitpush-status-new { /* Цвет иконки */
+    color: #22863a;
+}
+
+/* Статус: Изменен (желтый/оранжевый) */
+.gitpush-file-modified {
+    background-color: #fffbdd; /* Светло-желтый фон */
+    border-left: 3px solid #b08800; /* Желтая полоска слева */
+}
+.gitpush-status-modified { /* Цвет иконки */
+    color: #b08800;
+}
+
+/* Статус: Удален (красный) */
+.gitpush-file-deleted {
+    background-color: #ffeef0; /* Светло-красный фон */
+    border-left: 3px solid #cb2431; /* Красная полоска слева */
+    text-decoration: line-through; /* Перечеркнутый текст для удаленных */
+}
+.gitpush-status-deleted { /* Цвет иконки */
+    color: #cb2431;
+}
+
+/* Статус: Неизвестный/другой */
+.gitpush-file-unknown {
+    background-color: #f6f8fa; /* Светло-серый фон */
+    border-left: 3px solid #6a737d;
+}
+.gitpush-file-unknown .dashicons {
+    color: #6a737d;
+}
+
+.file-status-text {
+    font-style: italic;
+    color: #555;
+    margin-left: 8px;
+    font-size: 0.9em;
+}
+
+#gitpush-no-changes {
+    padding: 10px;
+    background-color: #f9f9f9;
+    border: 1px solid #e0e0e0;
+    color: #777;
+}
